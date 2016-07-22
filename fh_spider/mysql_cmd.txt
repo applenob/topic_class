@@ -1,0 +1,12 @@
+CREATE DATABASE IF NOT EXISTS fenghuang DEFAULT CHARSET utf8 COLLATE utf8_general_ci;
+create table arts(
+   publish_time DATE,
+   collect_time DATE,
+   id VARCHAR(100) NOT NULL ,
+   title VARCHAR(100) NOT NULL,
+   content text,
+   class VARCHAR(20) NOT NULL,
+   tags VARCHAR(100),
+   url VARCHAR(100),
+   PRIMARY KEY ( id )
+);
