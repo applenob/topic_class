@@ -4,6 +4,7 @@
 '''
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
+from sklearn.feature_extraction import FeatureHasher
 import jieba
 import re
 import numpy as np
@@ -62,6 +63,11 @@ class Preprocessor(object):
         count_texts = vectorizer.fit_transform(texts)
         return count_texts
 
+    def calc_hash_trick(self,texts,n_fs):
+        fh = FeatureHasher(n_features=n_fs, non_negative=True, input_type='string')
+        hash_text = fh.fit_transform(texts)
+        return hash_text
+
     def test(self):
         texts = []
         import mysql.connector
@@ -85,7 +91,6 @@ class Preprocessor(object):
         print prepro.calc_count_vectorize(words_list)
         print type(prepro.calc_tfidf(words_list))
 
-
     def clean_and_cut(self):
         sys.stderr.write("preprocessing data...\n\n")
         prepro = Preprocessor()
@@ -94,8 +99,9 @@ class Preprocessor(object):
         cursor = conn.cursor()
         try:
             # cursor.execute("select content,class from arts where !isNull(content) and class!='新闻';")
-            # cursor.execute("select content,id from arts where !isNull(content) and isNull(final_cut);")  # 只处理还没处理的数据
-            cursor.execute("select content,id from arts where !isNull(content);")  # 处理全部有content，在数据清洗的方式改变的情况下使用
+            cursor.execute("select content,id from "
+                           "arts where !isNull(content) and isNull(final_cut);")  # 只处理还没处理的数据
+            # cursor.execute("select content,id from arts where !isNull(content);")  # 处理全部有content，在数据清洗的方式改变的情况下使用
         except Exception as e:
             print e
         for rec in cursor.fetchall():
@@ -108,7 +114,29 @@ class Preprocessor(object):
         cursor.close()
         conn.close()
 
+    def get_tag(self):
+        from snownlp import SnowNLP
+        prepro = Preprocessor()
+        import mysql.connector
+        conn = mysql.connector.connect(user='root', password='123456', database='fenghuang', use_unicode=True)
+        cursor = conn.cursor()
+        try:
+            cursor.execute("select final_cut,id from arts where !isNull(final_cut) and isNull(tags);")  # 只处理还没处理的数据
+        except Exception as e:
+            print e
+        for rec in cursor.fetchall():
+            s = SnowNLP(rec[0])
+            key_words = ' '.join(s.keywords(5))
+            try:
+                cursor.execute("UPDATE arts SET tags = '%s' WHERE id = '%s';" % (key_words, rec[1]))
+                conn.commit()
+            except Exception as e:
+                print e
+        cursor.close()
+        conn.close()
+
 
 if __name__ == '__main__':
     prepro = Preprocessor()
     prepro.clean_and_cut()
+    # prepro.get_tag()

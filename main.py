@@ -6,12 +6,15 @@ from sklearn.multiclass import OneVsRestClassifier
 from sklearn.multiclass import OneVsOneClassifier
 from sklearn.cross_validation import train_test_split
 from sklearn.svm import SVC
+from sklearn import cross_validation
 import sklearn.feature_extraction
 from sklearn import metrics
 import sklearn.naive_bayes as nb
 import sklearn.externals.joblib as jl
 import time
 import sys
+import numpy as np
+import nltk_pipeline
 
 def get_catedict():
     '''返回分类标签和数字对应的dict'''
@@ -52,13 +55,7 @@ def load_data_from_mysql():
     conn.commit()
     cursor.close()
     conn.close()
-    prepro = Preprocessor()
-    sys.stderr.write("preprocessing data...\n")
-    # ti_text = prepro.calc_tfidf(texts)
-    ti_text = prepro.calc_tfidf(texts)
-    for i in range(50):
-        print catedict.keys()[catedict.values().index(classes[-50:][i])],' ', texts[-50:][i]
-    return ti_text,classes
+    return texts,classes
 
 def train_and_evaluate(clf,X,Y):
     # 分离训练集和数据集
@@ -79,16 +76,44 @@ def train_and_evaluate(clf,X,Y):
     print "Confusion Matrix:"
     print metrics.confusion_matrix(Y_test, Y_pred)
 
-if __name__ == '__main__':
-    t_s = time.time()
-    clf = OneVsRestClassifier(nb.MultinomialNB(alpha=0.01))
-    # clf = OneVsRestClassifier(SVC(kernel='linear', C=0.1))
+def cross_vali(clf,X,Y,K=5):
+    '''使用交叉验证评估模型,创建一个k-fold交叉验证，K默认为5'''
+    from scipy.stats import sem
+    cv = cross_validation.KFold(len(Y), n_folds=K, shuffle=True, random_state=0)
+    score = cross_validation.cross_val_score(clf, X,Y,cv=cv)
+    print score
+    print("Mean score: {0:.3f} (+/-{1:.3f})").format(np.mean(score), sem(score))
 
-    X, Y = load_data_from_mysql()
-    # print X,Y
+def run_steps():
+    t_s = time.time()
+    clf = OneVsRestClassifier(nb.MultinomialNB(alpha=0.02))
+    # clf = OneVsRestClassifier(nb.BernoulliNB(alpha=0.01))
+    # clf = OneVsRestClassifier(SVC(kernel='linear', C=1))
+
+    X_text, Y = load_data_from_mysql()
+
+    prepro = Preprocessor()
+    sys.stderr.write("preprocessing data...\n")
+    # X = prepro.calc_hash_trick(texts,15000)
+    X = prepro.calc_tfidf(X_text)
+    # for i in range(50):
+    #     print catedict.keys()[catedict.values().index(Y[-50:][i])],' ', X_text[-50:][i]
     print X.get_shape()
     train_and_evaluate(clf, X, Y)
+    # cross_vali(clf, X, Y)
     t_e = time.time()
-    sys.stderr.write("all using %.2f seconds.\n" %(t_e-t_s))
+    sys.stderr.write("all using %.2f seconds.\n" % (t_e - t_s))
 
+def run_pipeline():
+    t_s = time.time()
+    X, Y = load_data_from_mysql()
 
+    pipeline = nltk_pipeline.do_pipeline(X, Y)
+    nltk_pipeline.pipeline_debug(pipeline,X, Y)
+
+    t_e = time.time()
+    sys.stderr.write("all using %.2f seconds.\n" % (t_e - t_s))
+
+if __name__ == '__main__':
+    # run_steps()
+    run_pipeline()
